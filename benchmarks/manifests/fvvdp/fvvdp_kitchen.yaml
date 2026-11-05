@@ -1,0 +1,9 @@
+# FovVideoVDP comparison for kitchen (Tabs. 3/5/7 of the supplemental): the same model rendered
+# with the HTGS renderer (reference) and our foveated renderer.
+# Train benchmarks/configs/performance/htgs_kitchen.yaml first.
+rows:
+  - name: HTGS
+    run_dir: output/HTGS/perf_htgs_kitchen_2*
+  - name: Ours (FR)
+    run_dir: output/HTGS/perf_htgs_kitchen_2*
+    method: VRHTGS

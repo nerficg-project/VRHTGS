@@ -1,0 +1,7 @@
+# VR camera configuration for the Meta Quest Pro headset, used by
+# vrhtgs_performance_eval.py (--camera-config).
+resolution: [1952, 2032]
+focal_length: [914.8104858398438, 914.8104858398438]
+center_left: [1212.1922607421875, 803.09814453125]
+center_right: [738.8076171875, 803.09814453125]
+eye_distance: 0.0746

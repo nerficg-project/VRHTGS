@@ -1,0 +1,14 @@
+# Example evaluation manifest for vrhtgs_performance_eval.py / vrhtgs_export_trajectory.py.
+# Each row is one trained model; all rows are measured over the same trajectory.
+# Paths resolve against the current working directory (run the scripts from the repository root).
+# Train the referenced models with the configs in src/Methods/VRHTGS/benchmarks/configs/performance/.
+rows:
+  - name: HTGS
+    run_dir: output/HTGS/perf_htgs_garden_2*   # glob: the most recent matching run is used
+  - name: Ours (FR)
+    run_dir: output/HTGS/perf_htgs_garden_2*   # same model as above ...
+    method: VRHTGS                             # ... rendered with the foveated VRHTGS renderer
+  - name: Ours (Full)
+    run_dir: output/HTGS/perf_full_garden_2*
+    method: VRHTGS
+    checkpoint: final.pt                       # optional, this is the default

@@ -1,0 +1,3 @@
+[submodule "VRHTGSCudaBackend"]
+	path = VRHTGSCudaBackend
+	url =../../nerficg-project/VRHTGSCudaBackend.git

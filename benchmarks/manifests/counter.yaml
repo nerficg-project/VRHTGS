@@ -1,0 +1,16 @@
+# Performance comparison for counter (Tabs. 2/4/6 of the supplemental).
+# Train the three models in benchmarks/configs/performance/*_counter.yaml first.
+rows:
+  - name: HTGS
+    run_dir: output/HTGS/perf_htgs_counter_2*
+  - name: AA+VSP
+    run_dir: output/HTGS/perf_aa_counter_2*
+  - name: Ours (FR)
+    run_dir: output/HTGS/perf_htgs_counter_2*
+    method: VRHTGS
+  - name: Ours (NoBG)
+    run_dir: output/HTGS/perf_aa_counter_2*
+    method: VRHTGS
+  - name: Ours (Full)
+    run_dir: output/HTGS/perf_full_counter_2*
+    method: VRHTGS
