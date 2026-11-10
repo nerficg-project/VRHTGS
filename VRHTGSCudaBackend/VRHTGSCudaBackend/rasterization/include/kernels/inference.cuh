@@ -1,0 +1,287 @@
+#pragma once
+
+#include "config.h"
+#include "helper_math.h"
+#include "kernels/background_model.cuh"
+#include "utils/kernel_utils.cuh"
+#include "utils/kernel_utils_aaa.cuh"
+#include "utils/rasterization_utils.h"
+#include "utils/sh_utils.cuh"
+#include <cooperative_groups.h>
+#include <cuda_fp16.h>
+
+
+namespace vrhtgs::rasterization::kernels::inference {
+
+    struct FragmentInfo {
+        float depth;
+        uint32_t color;
+        __device__ FragmentInfo() : depth(__FLT_MAX__), color(0) {}
+        static __host__ __device__ __forceinline__ uint32_t pack_channel(const float x) {
+            return static_cast<uint32_t>(fminf(fmaxf(x, 0.0f), 1.0f) * 255.0f + 0.5f);
+        }
+        __host__ __device__ FragmentInfo(const float d, const float4 c)
+            : depth(d),
+              color(
+                  (pack_channel(c.x)      ) |
+                  (pack_channel(c.y) <<  8) |
+                  (pack_channel(c.z) << 16) |
+                  (pack_channel(c.w) << 24)
+              ) {}
+        __device__ float4 get_color() const {
+            return make_float4(
+                static_cast<float>((color >>  0) & 0xff),
+                static_cast<float>((color >>  8) & 0xff),
+                static_cast<float>((color >> 16) & 0xff),
+                static_cast<float>((color >> 24) & 0xff)
+            ) * (1.0f / 255.0f);
+        }
+    };
+    __device__ __forceinline__ bool operator<(const FragmentInfo& a, const FragmentInfo& b) { return a.depth < b.depth; }
+
+    template<bool aaa_mode, uint8_t cam_idx>
+    __global__ void preprocess_cu(
+        const float3* positions,
+        const float3* scales,
+        const float4* rotations,
+        const float* opacities,
+        const float3* sh_0,
+        const float3* sh_rest,
+        uint* primitive_n_touched_tiles,
+        ushort4* primitive_screen_bounds,
+        float4* primitive_VPMT1,
+        float4* primitive_VPMT2,
+        float4* primitive_VPMT4,
+        float4* primitive_rgba,
+        const uint* visibility_mask_area_table,
+        const uint* fovea_mask_area_table,
+        const uint n_primitives,
+        const uint grid_width,
+        const uint grid_height,
+        const uint active_sh_bases,
+        const uint total_sh_bases,
+        const int2 gaze_position,
+        const float width,
+        const float height,
+        const float focal_x,
+        const float focal_y,
+        const float center_x,
+        const float center_y,
+        const float near_plane,
+        const float far_plane,
+        const float scale_modifier)
+    {
+        const uint primitive_idx = __umul24(blockIdx.x, blockDim.x) + threadIdx.x;
+        if (primitive_idx >= n_primitives) return;
+
+        primitive_n_touched_tiles[primitive_idx] = 0;
+
+        const float3 position_world = positions[primitive_idx];
+        float opacity = opacities[primitive_idx];
+        uint n_touched_tiles;
+        uint4 screen_bounds;
+        float3 u, v, w;
+        float4 VPMT1, VPMT2, VPMT4;
+
+        // transform and cull
+        if constexpr (aaa_mode) {
+            // improved transform and cull
+            const bool culled = transform_and_cull_aaa<cam_idx>(
+                scales, rotations, position_world,
+                n_touched_tiles, screen_bounds, u, v, w, VPMT1, VPMT2, VPMT4, opacity,
+                visibility_mask_area_table, fovea_mask_area_table,
+                primitive_idx, grid_width, grid_height, config::tile_width_large, config::tile_height_large,
+                config::foveation_radius_tiles, gaze_position,
+                width, height, focal_x, focal_y, center_x, center_y,
+                config::min_alpha_threshold, config::min_alpha_threshold_rcp, scale_modifier
+            );
+            __syncwarp();
+            if (culled) return;
+        }
+        else {
+            const float4 M3 = c_M[cam_idx][2];
+            float z;
+            if (transform_and_cull<cam_idx>(
+                scales, rotations, position_world, M3,
+                n_touched_tiles, screen_bounds, u, v, w, VPMT1, VPMT2, VPMT4, z, opacity,
+                visibility_mask_area_table, fovea_mask_area_table,
+                primitive_idx, grid_width, grid_height, config::tile_width_large, config::tile_height_large,
+                config::foveation_radius_tiles, gaze_position,
+                near_plane, far_plane, config::min_alpha_threshold_rcp, scale_modifier
+            )) return;
+        }
+
+        // write intermediate results
+        primitive_n_touched_tiles[primitive_idx] = n_touched_tiles;
+        primitive_screen_bounds[primitive_idx] = make_ushort4(
+            static_cast<ushort>(screen_bounds.x),
+            static_cast<ushort>(screen_bounds.y),
+            static_cast<ushort>(screen_bounds.z),
+            static_cast<ushort>(screen_bounds.w)
+        );
+        primitive_VPMT1[primitive_idx] = VPMT1;
+        primitive_VPMT2[primitive_idx] = VPMT2;
+        primitive_VPMT4[primitive_idx] = VPMT4;
+
+        // compute view-dependent color
+        const float3 rgb = convert_sh_to_color<cam_idx>(
+            sh_0,
+            sh_rest,
+            position_world,
+            primitive_idx,
+            active_sh_bases,
+            total_sh_bases
+        );
+        primitive_rgba[primitive_idx] = make_float4(rgb, opacity);
+    }
+
+    template <int K, bool is_lowres_tile, BackgroundModelType background_model, uint8_t cam_idx>
+    __global__ void __launch_bounds__(config::block_size_blend) blend_cu(
+        const uint* tile_index_map,
+        const uint2* tile_instance_ranges,
+        const uint* instance_primitive_indices,
+        const float4* primitive_VPMT1,
+        const float4* primitive_VPMT2,
+        const float4* primitive_VPMT4,
+        const float4* primitive_rgba,
+        const float* background_model_data,
+        const int2 background_model_resolution,
+        float* image,
+        const uint tile_offset,
+        const uint width,
+        const uint height,
+        const uint grid_width,
+        const bool output_chw)
+    {
+        const cooperative_groups::thread_block block = cooperative_groups::this_thread_block();
+        const uint group_index = block.group_index().x + tile_offset;
+        const uint true_group_index = tile_index_map[group_index];
+        const uint large_tile_index = true_group_index / config::num_small_tiles_per_large_tile;
+        const uint subtile_index = true_group_index % config::num_small_tiles_per_large_tile;
+        const dim3 large_tile_index_2d(large_tile_index % grid_width, large_tile_index / grid_width, 0);
+        const dim3 subtile_index_2d(subtile_index % config::tile_stride_x, subtile_index / config::tile_stride_x, 0);
+
+        const dim3 thread_index = block.thread_index();
+        const uint thread_rank = block.thread_rank();
+        const uint2 pixel_coords = make_uint2(
+            large_tile_index_2d.x * config::tile_width_large + subtile_index_2d.x * config::tile_width_small + thread_index.x * (is_lowres_tile ? config::tile_stride_x : 1),
+            large_tile_index_2d.y * config::tile_height_large + subtile_index_2d.y * config::tile_height_small + thread_index.y * (is_lowres_tile ? config::tile_stride_y : 1)
+        );
+        const bool inside = pixel_coords.x < width && pixel_coords.y < height;
+
+        const float pixel_x = __uint2float_rn(pixel_coords.x);
+        const float pixel_y = __uint2float_rn(pixel_coords.y);
+        // setup shared memory
+        __shared__ float4 collected_VPMT1[config::block_size_blend], collected_VPMT2[config::block_size_blend], collected_VPMT4[config::block_size_blend];
+        __shared__ float3 collected_rgb[config::block_size_blend];
+        __shared__ float collected_opacity[config::block_size_blend];
+        // initialize local storage
+        float transmittance_tail = 1.0f;
+        float4 rgba_premultiplied_tail = make_float4(0.0f);
+        FragmentInfo core_fragments[K];
+        #pragma unroll
+        for (int i = 0; i < K; ++i) {
+            core_fragments[i] = FragmentInfo();
+        }
+        // collaborative loading and processing
+        const uint2 tile_range = tile_instance_ranges[true_group_index];
+        for (int n_points_remaining = tile_range.y - tile_range.x, current_fetch_idx = tile_range.x + thread_rank; n_points_remaining > 0; n_points_remaining -= config::block_size_blend, current_fetch_idx += config::block_size_blend) {
+            block.sync();
+            if (current_fetch_idx < tile_range.y) {
+                const uint primitive_idx = instance_primitive_indices[current_fetch_idx];
+                collected_VPMT1[thread_rank] = primitive_VPMT1[primitive_idx];
+                collected_VPMT2[thread_rank] = primitive_VPMT2[primitive_idx];
+                collected_VPMT4[thread_rank] = primitive_VPMT4[primitive_idx];
+                const float4 rgba = primitive_rgba[primitive_idx];
+                collected_rgb[thread_rank] = make_float3(rgba.x, rgba.y, rgba.z);
+                collected_opacity[thread_rank] = rgba.w;
+            }
+            block.sync();
+            if (inside) {
+                const int current_batch_size = min(config::block_size_blend, n_points_remaining);
+                for (int j = 0; j < current_batch_size; ++j) {
+                    const float4 VPMT1 = collected_VPMT1[j];
+                    const float4 VPMT2 = collected_VPMT2[j];
+                    const float4 VPMT4 = collected_VPMT4[j];
+                    const float4 plane_x_diag = VPMT1 - VPMT4 * pixel_x;
+                    const float4 plane_y_diag = VPMT2 - VPMT4 * pixel_y;
+                    const float3 plane_x_diag_normal = make_float3(plane_x_diag);
+                    const float3 plane_y_diag_normal = make_float3(plane_y_diag);
+                    const float3 m = plane_x_diag.w * plane_y_diag_normal - plane_x_diag_normal * plane_y_diag.w;
+                    const float3 d = cross(plane_x_diag_normal, plane_y_diag_normal);
+                    const float numerator_rho2 = dot(m, m);
+                    const float denominator = dot(d, d);
+                    if (numerator_rho2 > config::max_cutoff_sq * denominator) continue; // considering opacity requires log/sqrt -> slower
+                    const float denominator_rcp = 1.0f / denominator;
+                    const float G = expf(-0.5f * numerator_rho2 * denominator_rcp);
+                    const float alpha = fminf(collected_opacity[j] * G, config::max_fragment_alpha);
+                    if (alpha < config::min_alpha_threshold) continue;
+                    const float3 eval_point_diag = cross(d, m) * denominator_rcp;
+                    float depth = dot(make_float3(VPMT4), eval_point_diag) + VPMT4.w;
+
+                    const float3 rgb = collected_rgb[j];
+                    float4 rgba_premultiplied = make_float4(rgb.x * alpha, rgb.y * alpha, rgb.z * alpha, alpha);
+
+                    if (depth < core_fragments[K - 1].depth && alpha >= config::min_alpha_threshold_core) {
+                        FragmentInfo core_fragment(depth, rgba_premultiplied);
+                        #pragma unroll
+                        for (int core_idx = 0; core_idx < K; ++core_idx) {
+                            if (core_fragment < core_fragments[core_idx]) {
+                                swap(core_fragment, core_fragments[core_idx]);
+                            }
+                        }
+                        rgba_premultiplied = core_fragment.get_color();
+                    }
+                    const float primitive_transmittance_tail = 1.0f - rgba_premultiplied.w;
+                    rgba_premultiplied_tail += rgba_premultiplied;
+                    transmittance_tail *= primitive_transmittance_tail;
+                }
+            }
+        }
+        if (inside) {
+            // blend core
+            float3 rgb_pixel = make_float3(0.0f);
+            float transmittance_core = 1.0f;
+            #pragma unroll
+            for (int core_idx = 0; core_idx < K && transmittance_core >= config::transmittance_threshold; ++core_idx) {
+                const float4 rgba_premultiplied = core_fragments[core_idx].get_color();
+                rgb_pixel += transmittance_core * make_float3(rgba_premultiplied);
+                transmittance_core *= 1.0f - rgba_premultiplied.w;
+            }
+            // blend tail
+            if (transmittance_core >= config::transmittance_threshold && rgba_premultiplied_tail.w >= config::min_alpha_threshold) {
+                const float weight_tail = transmittance_core * (1.0f - transmittance_tail);
+                rgb_pixel += weight_tail * (1.0f / rgba_premultiplied_tail.w) * make_float3(rgba_premultiplied_tail);
+            }
+            // blend background model
+            if constexpr (background_model == BackgroundModelType::SH) {
+                const float weight_background = transmittance_core * transmittance_tail;
+                if (weight_background >= config::transmittance_threshold) {
+                    rgb_pixel += weight_background * background_model::eval_sh_background_model<cam_idx>(pixel_x, pixel_y);
+                }
+            } else if constexpr (background_model == BackgroundModelType::TEXTURE || background_model == BackgroundModelType::TEXTURE_RAW) {
+                const float weight_background = transmittance_core * transmittance_tail;
+                if (weight_background >= config::transmittance_threshold) {
+                    rgb_pixel += weight_background * background_model::eval_tex_background_model<
+                        background_model == BackgroundModelType::TEXTURE_RAW, cam_idx>(
+                        pixel_x, pixel_y, background_model_data, background_model_resolution
+                    );
+                }
+            }
+
+            // store results
+            const int pixel_idx = width * pixel_coords.y + pixel_coords.x;
+            if (output_chw) {
+                const int n_pixels = width * height;
+                image[pixel_idx] = __saturatef(rgb_pixel.x);
+                image[n_pixels + pixel_idx] = __saturatef(rgb_pixel.y);
+                image[2 * n_pixels + pixel_idx] = __saturatef(rgb_pixel.z);
+            } else {
+                const int base_idx = 3 * pixel_idx;
+                image[base_idx] = __saturatef(rgb_pixel.x);
+                image[base_idx + 1] = __saturatef(rgb_pixel.y);
+                image[base_idx + 2] = __saturatef(rgb_pixel.z);
+            }
+        }
+    }
+}

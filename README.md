@@ -55,12 +55,11 @@ should still work with the default (non-headless) environment as long as the cor
 </details>
 <br>
 
-Now, you can directly add this project as an additional method. Pay particular note to the
-`--recursive` flag when cloning the repository, as the method will otherwise not run:
+Now, you can directly add this project as an additional method:
 
 - Clone this repository into the `src/Methods/` directory:
 	```shell
-	git clone --recursive git@github.com:nerficg-project/VRHTGS.git src/Methods/VRHTGS
+	git clone git@github.com:nerficg-project/VRHTGS.git src/Methods/VRHTGS
 	```
 
 - VRHTGS reuses the model and trainer of the [HTGS](https://github.com/nerficg-project/HTGS) method, extended with
@@ -72,8 +71,14 @@ Now, you can directly add this project as an additional method. Pay particular n
 
 - Install all method-specific dependencies and CUDA extensions using:
 	```shell
+    # Linux
 	./scripts/install.py -m VRHTGS
+    # Windows
+	python ./scripts/install.py -m VRHTGS
 	```
+ 
+- Under Windows, the tiny-cuda-nn compile may fail. In that case,
+  setting `set CL=/bigobj` before running the install-script may help.
 
 ## Training and Inference
 
@@ -83,6 +88,15 @@ The VR-HTGS method is mostly compatible with the NeRFICG scripts in the `scripts
 training via `train.py`, 
 inference via `inference.py`,
 and live rendering via `gui.py`.
+
+When running under Windows, all of our scripts must be prepended with `python`. For example, to train a model, run:
+```shell
+python ./scripts/train.py -c configs/vrhtgs_garden.yaml
+```
+instead of
+```
+./scripts/train.py -c configs/vrhtgs_garden.yaml
+```
 
 Note that the test set metrics computed at the end of `train.py` are not meaningful when `GLOBAL.METHOD_TYPE` is
 `VRHTGS`, as the uniform full-image metrics (PSNR / SSIM / LPIPS) penalize the deliberately lower-res periphery
