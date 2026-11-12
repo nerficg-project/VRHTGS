@@ -219,7 +219,7 @@ namespace vrhtgs::rasterization::kernels::shared {
         }
     }
 
-    __global__ void get_partition_ranges_cu(
+    __global__ inline void get_partition_ranges_cu(
         uint2* partition_ranges,
         const TileType* tile_type_map,
         const uint n_tiles
