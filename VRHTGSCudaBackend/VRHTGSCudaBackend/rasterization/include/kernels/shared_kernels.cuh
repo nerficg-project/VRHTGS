@@ -101,8 +101,9 @@ namespace vrhtgs::rasterization::kernels::shared {
                 const uint tile_x = screen_bounds_coop.x + (instance_idx % screen_bounds_width_coop);
                 const uint tile_y = screen_bounds_coop.z + (instance_idx / screen_bounds_width_coop);
                 const uint tile_idx = tile_y * grid_width + tile_x;
-                const bool valid_tile = (visibility_mask[tile_idx / 32u] & (1 << (tile_idx % 32u))) != 0;
-                const bool write = instance_idx < instance_count_coop && valid_tile;
+                const bool in_range = instance_idx < instance_count_coop;
+                const bool valid_tile = in_range && (visibility_mask[tile_idx / 32u] & (1 << (tile_idx % 32u))) != 0;
+                const bool write = valid_tile;
                 const uint write_ballot = warp.ballot(write);
                 const bool is_fovea = write && is_in_fovea<foveation_radius_tiles>(tile_x, tile_y, grid_width, gaze_position_tiles);
                 const uint is_fovea_ballot = warp.ballot(is_fovea);

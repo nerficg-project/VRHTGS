@@ -77,7 +77,7 @@ namespace vrhtgs::rasterization::kernels::interpolation {
             const int current_fetch_idx = thread_rank + i * config::block_size_blur;
             if (current_fetch_idx < num_sample_points) {
                 int sample_x = current_fetch_idx % num_sample_points_x;
-                int sample_y = current_fetch_idx / num_sample_points_y;
+                int sample_y = current_fetch_idx / num_sample_points_x;
                 int pixel_x = base_pixel_x + min(sample_x, max_extent_right) * config::tile_stride_x;
                 int pixel_y = base_pixel_y + min(sample_y, max_extent_down) * config::tile_stride_y;
 
@@ -163,7 +163,7 @@ namespace vrhtgs::rasterization::kernels::interpolation {
         const uint large_tile_index = true_group_index / config::num_small_tiles_per_large_tile;
         const uint subtile_index = true_group_index % config::num_small_tiles_per_large_tile;
         const dim3 large_tile_index_2d(large_tile_index % grid_width, large_tile_index / grid_width, 0);
-        const dim3 subtile_index_2d(subtile_index % config::tile_stride_x, subtile_index / config::tile_stride_y, 0);
+        const dim3 subtile_index_2d(subtile_index % config::tile_stride_x, subtile_index / config::tile_stride_x, 0);
 
         const dim3 thread_index = block.thread_index();
         const uint thread_rank = block.thread_rank();
@@ -187,7 +187,7 @@ namespace vrhtgs::rasterization::kernels::interpolation {
             const int current_fetch_idx = thread_rank + i * config::block_size_blur_blended;
             if (current_fetch_idx < num_sample_points) {
                 int sample_x = current_fetch_idx % num_sample_points_x;
-                int sample_y = current_fetch_idx / num_sample_points_y;
+                int sample_y = current_fetch_idx / num_sample_points_x;
                 int pixel_x = base_pixel_x + min(sample_x, max_extent_right) * config::tile_stride_x;
                 int pixel_y = base_pixel_y + min(sample_y, max_extent_down) * config::tile_stride_y;
 
@@ -308,7 +308,7 @@ namespace vrhtgs::rasterization::kernels::interpolation {
             const int current_fetch_idx = thread_rank + i * config::block_size_blur;
             if (current_fetch_idx < num_sample_points) {
                 int sample_x = current_fetch_idx % num_sample_points_x;
-                int sample_y = current_fetch_idx / num_sample_points_y;
+                int sample_y = current_fetch_idx / num_sample_points_x;
                 int pixel_x = base_pixel_x + min(sample_x, max_extent_right) * config::tile_stride_x;
                 int pixel_y = base_pixel_y + min(sample_y, max_extent_down) * config::tile_stride_y;
 
@@ -432,7 +432,7 @@ namespace vrhtgs::rasterization::kernels::interpolation {
         const uint large_tile_index = true_group_index / config::num_small_tiles_per_large_tile;
         const uint subtile_index = true_group_index % config::num_small_tiles_per_large_tile;
         const dim3 large_tile_index_2d(large_tile_index % grid_width, large_tile_index / grid_width, 0);
-        const dim3 subtile_index_2d(subtile_index % config::tile_stride_x, subtile_index / config::tile_stride_y, 0);
+        const dim3 subtile_index_2d(subtile_index % config::tile_stride_x, subtile_index / config::tile_stride_x, 0);
 
         const dim3 thread_index = block.thread_index();
         const uint thread_rank = block.thread_rank();
@@ -456,7 +456,7 @@ namespace vrhtgs::rasterization::kernels::interpolation {
             const int current_fetch_idx = thread_rank + i * config::block_size_blur_blended;
             if (current_fetch_idx < num_sample_points) {
                 int sample_x = current_fetch_idx % num_sample_points_x;
-                int sample_y = current_fetch_idx / num_sample_points_y;
+                int sample_y = current_fetch_idx / num_sample_points_x;
                 int pixel_x = base_pixel_x + min(sample_x, max_extent_right) * config::tile_stride_x;
                 int pixel_y = base_pixel_y + min(sample_y, max_extent_down) * config::tile_stride_y;
 
