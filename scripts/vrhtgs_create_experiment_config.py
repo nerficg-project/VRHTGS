@@ -20,11 +20,10 @@ class Condition:
     model_type: Literal['HTGS', 'VRHTGS']
     anti_aliasing: bool = False
     blur_periphery: bool = False
-    periphery_interpolation_mode: Literal['nearest', 'linear'] = 'nearest'
 
     def __str__(self):
         return f'{self.model_type},{str(self.model_path.absolute())},{self.anti_aliasing},' \
-               f'{self.blur_periphery},{self.periphery_interpolation_mode}'
+               f'{self.blur_periphery}'
 
 
 def collect_conditions(
@@ -32,7 +31,6 @@ def collect_conditions(
         model_type: Literal['HTGS', 'VRHTGS'],
         anti_aliasing: bool = False,
         blur_periphery: bool = True,
-        periphery_interpolation_mode: Literal['linear', 'nearest'] = 'linear',
         excluded_conditions: list[Condition] | None = None,
 ) -> list[Condition]:
     conditions = []
@@ -48,7 +46,6 @@ def collect_conditions(
             model_type=model_type,
             anti_aliasing=anti_aliasing,
             blur_periphery=blur_periphery,
-            periphery_interpolation_mode=periphery_interpolation_mode,
         )
         conditions.append(condition)
     return conditions
@@ -86,32 +83,28 @@ def generate_experiment_config(participant_id: int) -> None:
     vr_htgs_aa_bgm_dir = 'htgs-bgm'
 
     BLUR_PERIPHERY = True
-    PERIPHERY_INTERPOLATION_MODE: Literal['nearest', 'linear'] = 'linear'
 
     # Generate calibration conditions
     calibration_conditions += sample(collect_conditions(calibration_dir, htgs_dir, model_type='HTGS'),
                                      k=NUM_CALIBRATION_HTGS)
     calibration_conditions += sample(collect_conditions(calibration_dir, vr_htgs_dir, model_type='VRHTGS',
-                                                        anti_aliasing=False, blur_periphery=BLUR_PERIPHERY, excluded_conditions=calibration_conditions,
-                                                        periphery_interpolation_mode=PERIPHERY_INTERPOLATION_MODE), k=NUM_CALIBRATION_FOVEATED)
+                                                        anti_aliasing=False, blur_periphery=BLUR_PERIPHERY,
+                                                        excluded_conditions=calibration_conditions), k=NUM_CALIBRATION_FOVEATED)
     calibration_conditions += sample(collect_conditions(calibration_dir, vr_htgs_aa_dir, model_type='VRHTGS',
-                                                        anti_aliasing=True, blur_periphery=BLUR_PERIPHERY, excluded_conditions=calibration_conditions,
-                                                        periphery_interpolation_mode=PERIPHERY_INTERPOLATION_MODE), k=NUM_CALIBRATION_AA)
+                                                        anti_aliasing=True, blur_periphery=BLUR_PERIPHERY,
+                                                        excluded_conditions=calibration_conditions), k=NUM_CALIBRATION_AA)
     calibration_conditions += sample(collect_conditions(calibration_dir, vr_htgs_aa_bgm_dir, model_type='VRHTGS',
-                                                        anti_aliasing=True, blur_periphery=BLUR_PERIPHERY, excluded_conditions=calibration_conditions,
-                                                        periphery_interpolation_mode=PERIPHERY_INTERPOLATION_MODE), k=NUM_CALIBRATION_BGM)
+                                                        anti_aliasing=True, blur_periphery=BLUR_PERIPHERY,
+                                                        excluded_conditions=calibration_conditions), k=NUM_CALIBRATION_BGM)
 
     # Generate experiment conditions
     experiment_conditions += collect_conditions(experiment_dir, htgs_dir, model_type='HTGS')
     experiment_conditions += collect_conditions(experiment_dir, vr_htgs_dir, model_type='VRHTGS',
-                                                anti_aliasing=False, blur_periphery=BLUR_PERIPHERY,
-                                                periphery_interpolation_mode=PERIPHERY_INTERPOLATION_MODE)
+                                                anti_aliasing=False, blur_periphery=BLUR_PERIPHERY)
     experiment_conditions += collect_conditions(experiment_dir, vr_htgs_aa_dir, model_type='VRHTGS',
-                                                anti_aliasing=True, blur_periphery=BLUR_PERIPHERY,
-                                                periphery_interpolation_mode=PERIPHERY_INTERPOLATION_MODE)
+                                                anti_aliasing=True, blur_periphery=BLUR_PERIPHERY)
     experiment_conditions += collect_conditions(experiment_dir, vr_htgs_aa_bgm_dir, model_type='VRHTGS',
-                                                anti_aliasing=True, blur_periphery=BLUR_PERIPHERY,
-                                                periphery_interpolation_mode=PERIPHERY_INTERPOLATION_MODE)
+                                                anti_aliasing=True, blur_periphery=BLUR_PERIPHERY)
 
     # Shuffle and write to file
     shuffle(experiment_conditions)

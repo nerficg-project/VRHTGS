@@ -78,7 +78,7 @@ def main(*, base_dir: Path, ignore_background_model: bool = False) -> None:
 
     Logger.log_info('starting background model export')
     if background_model_type == 'SH':
-        coeffs = model.background_model.get_sh_coefficients.cpu()
+        coeffs = model.background_model.get_sh_coefficients.detach().cpu()
         with open(base_dir / 'background_sh_coefficients.bin', 'wb') as f:
             f.write(struct.pack(f'{coeffs.numel()}f', *coeffs.flatten().numpy()))
     elif background_model_type == 'TEX':
