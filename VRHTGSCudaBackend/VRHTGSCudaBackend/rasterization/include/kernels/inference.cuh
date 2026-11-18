@@ -40,7 +40,7 @@ namespace vrhtgs::rasterization::kernels::inference {
     __device__ __forceinline__ bool operator<(const FragmentInfo& a, const FragmentInfo& b) { return a.depth < b.depth; }
 
     template<bool aaa_mode, uint8_t cam_idx>
-    __global__ void preprocess_cu(
+    static __global__ void preprocess_cu(
         const float3* positions,
         const float3* scales,
         const float4* rotations,
@@ -136,7 +136,7 @@ namespace vrhtgs::rasterization::kernels::inference {
     }
 
     template <int K, bool is_lowres_tile, BackgroundModelType background_model, uint8_t cam_idx>
-    __global__ void __launch_bounds__(config::block_size_blend) blend_cu(
+    static __global__ void __launch_bounds__(config::block_size_blend) blend_cu(
         const uint* tile_index_map,
         const uint2* tile_instance_ranges,
         const uint* instance_primitive_indices,

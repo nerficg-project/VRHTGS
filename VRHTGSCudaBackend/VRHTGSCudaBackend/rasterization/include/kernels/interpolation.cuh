@@ -38,7 +38,7 @@ namespace vrhtgs::rasterization::kernels::interpolation {
     }
 
 
-    __global__ void __launch_bounds__(config::block_size_blur) bilinear_interpolation(
+    static __global__ void __launch_bounds__(config::block_size_blur) bilinear_interpolation(
         float* image,
         const uint32_t* visibility_mask,
         const uint* tile_index_map,
@@ -147,7 +147,7 @@ namespace vrhtgs::rasterization::kernels::interpolation {
 
 
     template<uint8_t cam_idx>
-    __global__ void __launch_bounds__(config::block_size_blur_blended) bilinear_interpolation_blended(
+    static __global__ void __launch_bounds__(config::block_size_blur_blended) bilinear_interpolation_blended(
         float* image,
         const uint32_t* visibility_mask,
         const uint* tile_index_map,
@@ -267,7 +267,7 @@ namespace vrhtgs::rasterization::kernels::interpolation {
     }
 
 
-    __global__ void __launch_bounds__(config::block_size_blur) interpolate_and_blur(
+    static __global__ void __launch_bounds__(config::block_size_blur) interpolate_and_blur(
         float* image_blurred,
         const float* image,
         const uint32_t* visibility_mask,
@@ -414,7 +414,7 @@ namespace vrhtgs::rasterization::kernels::interpolation {
 
 
     template<uint8_t cam_idx>
-    __global__ void __launch_bounds__(config::block_size_blur_blended) interpolate_and_blur_blended(
+    static __global__ void __launch_bounds__(config::block_size_blur_blended) interpolate_and_blur_blended(
         float* image_blurred,
         const float* image,
         const uint32_t* visibility_mask,

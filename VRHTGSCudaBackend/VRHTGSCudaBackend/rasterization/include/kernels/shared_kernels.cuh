@@ -13,7 +13,7 @@ namespace cg = cooperative_groups;
 namespace vrhtgs::rasterization::kernels::shared {
 
     template <typename KeyT, uint foveation_radius_tiles, uint num_small_tiles, uint8_t cam_idx>
-    __global__ void create_instances_cu(
+    static __global__ void create_instances_cu(
         const uint* primitive_n_touched_tiles,
         const uint* primitive_offsets,
         const ushort4* primitive_screen_bounds,
@@ -132,7 +132,7 @@ namespace vrhtgs::rasterization::kernels::shared {
 
 
     template <typename KeyT>
-    __global__ void extract_instance_ranges_cu(
+    static __global__ void extract_instance_ranges_cu(
         const KeyT* instance_keys,
         uint2* tile_instance_ranges,
         const uint n_instances)
@@ -154,7 +154,7 @@ namespace vrhtgs::rasterization::kernels::shared {
 
 
     template <int foveation_radius_tiles, int num_small_tiles, uint8_t cam_idx>
-    __global__ void fill_tile_index_num_tiles(
+    static __global__ void fill_tile_index_num_tiles(
         uint* tile_index_map_num_tiles,
         const uint32_t* visibility_mask,
         const float2 gaze_position_tiles,
@@ -180,7 +180,7 @@ namespace vrhtgs::rasterization::kernels::shared {
     }
 
     template <int num_small_tiles, int blend_radius_tiles>
-    __global__ void build_tile_index_map(
+    static __global__ void build_tile_index_map(
         uint* tile_index_map,
         TileType* tile_type_map,
         const uint* tile_index_map_num_tiles,
@@ -220,7 +220,7 @@ namespace vrhtgs::rasterization::kernels::shared {
         }
     }
 
-    __global__ inline void get_partition_ranges_cu(
+    static __global__ void get_partition_ranges_cu(
         uint2* partition_ranges,
         const TileType* tile_type_map,
         const uint n_tiles
