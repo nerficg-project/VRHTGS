@@ -21,7 +21,7 @@ namespace vrhtgs::rasterization::kernels::background_model {
         const auto [x, y, z] = normalize(pixel_coords_transformed);
         const float xx = x * x, yy = y * y, zz = z * z;
         const float xy = x * y, xz = x * z, yz = y * z;
-        const float3 sh_eval = 0.5f + C0 * c_background_sh_coeff[0]
+        const float3 sh_eval = C0 * c_background_sh_coeff[0]
                              - C1 * y * c_background_sh_coeff[1]
                              + C1 * z * c_background_sh_coeff[2]
                              - C1 * x * c_background_sh_coeff[3]
