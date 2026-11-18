@@ -151,7 +151,7 @@ def parse_args():
     )
     parser.add_argument(
         '--gaze', default=None, type=int, nargs=2, metavar=('X', 'Y'),
-        help='Fixation point in pixels (default: image centre, which is also where the foveated renderer '
+        help='Fixation point in pixels (default: image center, which is also where the foveated renderer '
              'places the fovea when no gaze is given).'
     )
     args = parser.parse_args()

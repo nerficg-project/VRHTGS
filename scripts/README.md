@@ -233,7 +233,7 @@ Scores the rows of a `vrhtgs_export_trajectory.py` output directory against one 
 segment of `1 + n` frames per dataset view (`-i n`); every segment is scored as a short video, and a
 row's JOD is the mean over all segments. The display model emulates the Meta Quest Pro
 (diagonal field of view 111.24°, 3 m viewing distance, 100 cd/m² peak luminance, contrast 3000:1).
-Without `--gaze`, the fixation point is the image centre, which is also where the foveated renderer
+Without `--gaze`, the fixation point is the image center, which is also where the foveated renderer
 places the fovea when no gaze is given. Each eye of a stereo export is scored separately.
 
 pyfvvdp is not a framework dependency; install it into the environment first:
@@ -260,7 +260,7 @@ Arguments:
 | `--rows` | str | all other rows | Comma-separated rows to score. |
 | `--eyes` | str | all exported eyes | Comma-separated eyes to score for stereo exports, e.g. `left`. |
 | `--window` | int | `31` | Frames per scored segment, i.e. `1 + n` for an export with `-i n`. Also used as the frame rate. |
-| `--gaze` | int int | image centre | Fixation point in pixels. |
+| `--gaze` | int int | image center | Fixation point in pixels. |
 
 ### Output
 
