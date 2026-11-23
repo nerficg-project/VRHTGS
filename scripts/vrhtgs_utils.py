@@ -331,39 +331,40 @@ def get_vr_views(
             raise Framework.InferenceError('No images found for benchmarking.')
 
     # Prepare views
-    if interp_frames >= 0:
-        views = []
+    views = []
+    controller = None
+    if interp_frames > 0:
         controller = FlyingControls(initial_c2w=dataset[0].c2w_numpy) \
             if interpolation == 'flying' \
             else OrbitalControls(initial_c2w=dataset[0].c2w_numpy)
 
-        for i, view in enumerate(dataset):
-            controller.c2w = view.c2w_numpy
-            controller.ease_to(
-                to_c2w=dataset[(i + 1) % len(dataset)].c2w_numpy,
-                duration=1.0,
-                skip_animations=False,
-                easing_function=lambda t: t  # linear
-            )
-            view_copy = deepcopy(view)
-            if resolution is not None:
-                view_copy.camera.width = resolution[0]
-                view_copy.camera.height = resolution[1]
-            if focal_length is not None:
-                view_copy.camera.focal_x = focal_length[0]
-                view_copy.camera.focal_y = focal_length[1]
-            if center_left is not None:
-                view_copy.camera.center_x = center_left[0]
-                view_copy.camera.center_y = center_left[1]
-            views.append(get_stereo_pair(view_copy, center_left, center_right, eye_distance) if vr_stereo else (view_copy,))
-            step = 1 / (interp_frames + 1)
-            for t_idx in range(interp_frames):
-                controller.run_animation(step, skip_animations=False)
-                interp_view = deepcopy(view_copy)
-                interp_view.c2w = controller.c2w
-                views.append(get_stereo_pair(interp_view, center_left, center_right, eye_distance) if vr_stereo else (interp_view,))
-    else:
-        views = [get_stereo_pair(view, eye_distance=eye_distance) if vr_stereo else (view,) for view in dataset]
+    for i, view in enumerate(dataset):
+        view_copy = deepcopy(view)
+        if resolution is not None:
+            view_copy.camera.width = resolution[0]
+            view_copy.camera.height = resolution[1]
+        if focal_length is not None:
+            view_copy.camera.focal_x = focal_length[0]
+            view_copy.camera.focal_y = focal_length[1]
+        if center_left is not None:
+            view_copy.camera.center_x = center_left[0]
+            view_copy.camera.center_y = center_left[1]
+        views.append(get_stereo_pair(view_copy, center_left, center_right, eye_distance) if vr_stereo else (view_copy,))
+        if controller is None:
+            continue
+        controller.c2w = view.c2w_numpy
+        controller.ease_to(
+            to_c2w=dataset[(i + 1) % len(dataset)].c2w_numpy,
+            duration=1.0,
+            skip_animations=False,
+            easing_function=lambda t: t  # linear
+        )
+        step = 1 / (interp_frames + 1)
+        for t_idx in range(interp_frames):
+            controller.run_animation(step, skip_animations=False)
+            interp_view = deepcopy(view_copy)
+            interp_view.c2w = controller.c2w
+            views.append(get_stereo_pair(interp_view, center_left, center_right, eye_distance) if vr_stereo else (interp_view,))
 
     Logger.log_info(f'Prepared {len(views)} {"stereo" if vr_stereo else "monocular"} views for benchmarking.')
     return views
